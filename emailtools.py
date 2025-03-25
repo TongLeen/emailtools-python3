@@ -252,7 +252,9 @@ class Email:
             if isinstance(i, str):
                 mail.addText(i)
             elif isinstance(i, Sequence):
-                if bool(i) and isinstance(i[0], Sequence):
+                if isinstance(i[0], str):
+                    mail.addTable((i,))
+                elif bool(i) and isinstance(i[0], Sequence):
                     mail.addTable(i)
                 else:
                     mail.addTable((i,))
