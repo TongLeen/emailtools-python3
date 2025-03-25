@@ -41,6 +41,13 @@ Config file `"./emailserver.json"` (Of course you can use any name you like) con
 ```
 ---
 
+## Install
+
+Install with `pip` :
+```bash
+> pip install tl-emailtools -y
+```
+
 ## Dependency
 
 - No essential dependency when running on Python3.12

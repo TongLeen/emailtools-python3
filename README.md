@@ -59,6 +59,13 @@ server.send(mail)
 
 ---
 
+## 安装
+
+使用 `pip` 进行安装:
+```bash
+> pip install tl-emailtools -y
+```
+
 ## 使用方法
 
 1. 新建 `Email` 实例. `Email` 类提供两种方式新建邮件:
