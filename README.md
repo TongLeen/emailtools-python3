@@ -1,6 +1,12 @@
-# email-tools
+# emailtools-python3
+                                                       
+A simple wrapper for standard lib -- `email` & `stmplib`
+  
+Simplify the steps of sending emails in Python, generate and send neatly formatted emails with just a few lines of code.
 
-A wrapper for Python3 standard lib stmplib and email.
+README in English click [this](./README_en.md)
+
+---
 
 # 电子邮件工具
 
@@ -42,6 +48,14 @@ server.send(mail)
     }
 }
 ```
+
+---
+
+## 依赖
+
+- 运行在Python3.12上无需任何必需的依赖即可发送文本和表格
+- 发送图片的功能需要 `pillow`
+- 发送数据表的功能需要 `pandas` 
 
 ---
 
