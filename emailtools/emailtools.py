@@ -13,32 +13,16 @@ CONFIG_TEMPLATE = """
 import base64
 import json
 import re
+import sys
 
-
+from collections.abc import Sequence
 from io import BytesIO
-from smtplib import SMTP_SSL
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.header import Header
-from typing import Self, Any, Sequence
-
-try:
-    from PIL import Image
-
-    _USING_PIL = True
-except ImportError:
-    _USING_PIL = False
-    print("Package 'PIL' not found. Relative functions not valid.")
-
-
-try:
-    import pandas as pd
-
-    _USING_PANDAS = True
-except ImportError:
-    _USING_PANDAS = False
-    print("Package 'pandas' not found. Relative functions not valid.")
+from smtplib import SMTP_SSL
+from typing import Self, Any
 
 
 HEAD_RE = re.compile(r"^\W*#+ .*$")
@@ -101,11 +85,11 @@ class Email:
 
     def addTable(
         self,
-        content: Sequence[Sequence],
-        head: Sequence | None = None,
+        content: Sequence[Sequence[Any]],
+        head: Sequence[Any] | None = None,
         caption: str | None = None,
     ) -> None:
-        e = []
+        e: list[Any] = []
         e.append('<table border="1" cellspacing="0" cellpadding="0">')
         if caption is not None:
             e.append(f"<caption>{caption}</caption>")
@@ -124,11 +108,11 @@ class Email:
         return
 
     def _setSender(self, name: str, addr: str) -> None:
-        self.root["From"] = Header(f"{self._encodeNikename(name)} <{addr}>", "ascii")
+        self.root["From"] = Header(f"{self._encodeNikename(name)} <{addr}>", "ascii")  # type: ignore
         return
 
     def _setReceivers(self, receivers: dict[str, str]) -> None:
-        self.root["To"] = Header(
+        self.root["To"] = Header(  # type: ignore
             ";".join(
                 [
                     f"{self._encodeNikename(name)} <{addr}>"
@@ -148,7 +132,7 @@ class Email:
             return f'"=?utf-8?B?{b.decode("ascii")}?="'
 
     def toBytes(self) -> bytes:
-        self.root["Subject"] = Header(self.subject, "utf-8")
+        self.root["Subject"] = Header(self.subject, "utf-8")  # type: ignore
 
         html = f'''<html>
         <head><style>{HTML_CSS}</style></head>
@@ -169,42 +153,55 @@ class Email:
 
     @classmethod
     def sequence(cls, subject: str, *items: Any) -> Self:
+        globalModules = sys.modules
+        PIL = globalModules.get("PIL", None)
+        pandas = globalModules.get("pandas")
+
         mail = cls(subject)
-        for i in items:
+        for i in items:  # type: ignore
+            i: "str | Sequence[Any] | Image | DataFrame"  # type: ignore
             if isinstance(i, str):
                 mail.addText(i)
-            elif isinstance(i, Sequence):
-                if isinstance(i[0], str):
-                    mail.addTable((i,))
-                elif bool(i) and isinstance(i[0], Sequence):
-                    mail.addTable(i)
+                continue
+            if isinstance(i, Sequence):
+                if any(isinstance(j, str) for j in i):  # type: ignore
+                    mail.addTable((i,))  # type: ignore
+                elif bool(i) and any(isinstance(j, Sequence) for j in i):  # type: ignore
+                    mail.addTable(i)  # type: ignore
                 else:
-                    mail.addTable((i,))
-            elif _USING_PIL and isinstance(i, Image.Image):
-                mail.addImage(i)
-            elif _USING_PANDAS and isinstance(i, pd.DataFrame):
-                mail.addDataFrame(i)
-            else:
-                raise TypeError(f"This type {type(i)} cannot append to email.")
+                    mail.addTable((i,))  # type: ignore
+                continue
+
+            if PIL is not None:
+                if isinstance(i, PIL.Image.Image):
+                    mail.addImage(i)  # type: ignore
+                    continue
+            if pandas is not None:
+                if isinstance(i, pandas.DataFrame):
+                    mail.addDataFrame(i)  # type: ignore
+                    continue
+
+            raise TypeError(f"This type {type(i)} cannot append to email.")  # type: ignore
+
         return mail
 
-    if _USING_PIL:
+    def addImage(self, img: "Image") -> None:  # type: ignore
+        self.elementList.append(f'<p><img src="cid:img{self.imageCount}"/></p>')
+        buf = BytesIO()
+        img.save(buf, "png")  # type: ignore
+        self.imageList.append((self.imageCount, buf.getvalue()))
+        self.imageCount += 1
+        return
 
-        def addImage(self, img: Image.Image) -> None:
-            self.elementList.append(f'<p><img src="cid:img{self.imageCount}"/></p>')
-            buf = BytesIO()
-            img.save(buf, "png")
-            self.imageList.append((self.imageCount, buf.getvalue()))
-            self.imageCount += 1
-            return
-
-    if _USING_PANDAS:
-
-        def addDataFrame(self, df: pd.DataFrame, caption: str | None = None) -> None:
-            header = list(df.columns)
-            body = df.values.tolist()
-            self.addTable(body, head=header, caption=caption)
-            return
+    def addDataFrame(
+        self,
+        df: "DataFrame",  # type: ignore
+        caption: str | None = None,
+    ) -> None:
+        header = list(df.columns)  # type: ignore
+        body = df.values.tolist()  # type: ignore
+        self.addTable(body, head=header, caption=caption)  # type: ignore
+        return
 
 
 class EmailServer:
@@ -219,7 +216,7 @@ class EmailServer:
         return
 
     def send(self, mail: Email, receivers: dict[str, str] | None = None) -> None:
-        mail._setSender(self.userName, self.userAddr)
+        mail._setSender(self.userName, self.userAddr)  # type: ignore
         if receivers:
             pass
         elif bool(self.defaultReceivers):
@@ -227,8 +224,8 @@ class EmailServer:
         else:
             raise ValueError("No receivers specified.")
 
-        mail._setReceivers(receivers)
-        self.server.sendmail(self.userAddr, receivers.keys(), mail.toBytes())
+        mail._setReceivers(receivers)  # type: ignore
+        self.server.sendmail(self.userAddr, tuple(receivers.keys()), mail.toBytes())
         return
 
     def __del__(self) -> None:
@@ -238,11 +235,12 @@ class EmailServer:
     @classmethod
     def initFromJson(cls, filePath: str) -> Self:
         with open(filePath, "r", encoding="utf-8") as f:
-            cfg: dict = json.load(f)
+            cfg: dict[str, str] = json.load(f)
         try:
             server = cls(cfg["host"], cfg["name"], cfg["addr"], cfg["key"])
             server.defaultReceivers = cfg.pop("receivers")
-        except IndexError as e:
+            return server
+        except IndexError as _:
             print("Configure file format cracked. Use below template:")
             print(CONFIG_TEMPLATE)
-        return server
+            sys.exit()
